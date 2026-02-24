@@ -2,7 +2,7 @@
 
 
 import uuid
-from app.services.nlp.triage_rules import evaluate_triage
+from backend.app.services.nlp.urgency_scorer import evaluate_triage
 from app.services.nlp.soap_formatter import build_soap
 from app.services.rag.guardrails import apply_guardrails
 
