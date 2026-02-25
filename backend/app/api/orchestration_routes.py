@@ -1,8 +1,8 @@
 # Purpose: Expose POST /ai/process_intake
 
 from fastapi import APIRouter
-from app.schemas.intake import IntakeRequest
-from app.services.orchestration.pipeline import process_intake
+from schemas.intake import IntakeRequest
+from services.orchestration.pipeline import process_intake
 
 router = APIRouter()
 
