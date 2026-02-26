@@ -11,7 +11,7 @@ import logging
 import textwrap
 from typing import List, Optional
 
-from models.clinical_schema import (
+from app.models.clinical_schema import (
     ClinicalFlag,
     ConfidenceLevel,
     Severity,
