@@ -30,7 +30,6 @@ from app.services.nlp.soap_formatter import SOAPFormatter
 from app.services.nlp.symptom_extractor import SymptomExtractor
 from app.services.nlp.urgency_scorer import UrgencyScorer
 from app.services.nlp.validators import ClinicalValidator
-from app.utils.errors import error_payload
 
 router = APIRouter(prefix="/nlp", tags=["NLP & Clinical Structuring"])
 
@@ -40,12 +39,6 @@ _formatter = SOAPFormatter()
 _validator = ClinicalValidator()
 _urgency_scorer = UrgencyScorer() 
 
-
-def _internal_error(message: str, exc: Exception) -> HTTPException:
-    return HTTPException(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail=error_payload("INTERNAL_ERROR", message, str(exc)),
-    )
 
 
 # Request / Response models
@@ -125,7 +118,10 @@ async def extract_structured_data(request: ExtractRequest) -> ExtractResponse:
             patient_sex=request.patient_sex,
         )
     except Exception as e:
-        raise _internal_error("Extraction failed", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Extraction failed: {str(e)}",
+        )
 
     elapsed_ms = (time.perf_counter() - start) * 1000
 
@@ -152,7 +148,10 @@ async def generate_soap_note(request: SOAPRequest) -> SOAPResponse:
     try:
         soap_note = _formatter.format(request.structured_data)
     except Exception as e:
-        raise _internal_error("SOAP formatting failed", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"SOAP formatting failed: {str(e)}",
+        )
 
     elapsed_ms = (time.perf_counter() - start) * 1000
 
@@ -186,25 +185,37 @@ async def process_transcript(request: FullProcessRequest) -> NLPResponseWithUrge
             patient_sex=request.patient_sex,
         )
     except Exception as e:
-        raise _internal_error("Extraction step failed", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Extraction step failed: {str(e)}",
+        )
 
     # Step 2: Format SOAP
     try:
         soap_note = _formatter.format(structured_data)
     except Exception as e:
-        raise _internal_error("SOAP formatting step failed", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"SOAP formatting step failed: {str(e)}",
+        )
 
     # Step 3: Validate
     try:
         validation = _validator.validate_all(structured_data, soap_note)
     except Exception as e:
-        raise _internal_error("Validation step failed", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Validation step failed: {str(e)}",
+        )
 
     # Step 4: Urgency Scoring
     try:
         urgency = _urgency_scorer.score(structured_data)
     except Exception as e:
-        raise _internal_error("Urgency scoring failed", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Urgency scoring failed: {str(e)}",
+        )
 
     elapsed_ms = (time.perf_counter() - start) * 1000
 
@@ -228,7 +239,10 @@ async def validate_clinical_data(request: ValidateRequest) -> ValidateResponse:
     try:
         validation = _validator.validate_all(request.structured_data, request.soap_note)
     except Exception as e:
-        raise _internal_error("Validation failed", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Validation failed: {str(e)}",
+        )
 
     return ValidateResponse(
         session_id=request.structured_data.session_id,

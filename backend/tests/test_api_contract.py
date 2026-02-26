@@ -119,3 +119,16 @@ def test_error_shape_for_validation_and_forbidden(tmp_path: Path) -> None:
     invalid = client.post("/ai/process_intake", json={"visit_id": "x"}, headers={"X-Role": "nurse"})
     assert invalid.status_code == 422
     assert invalid.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_sync_scaffold_endpoints(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    status = client.get("/admin/sync/status", headers={"X-Role": "admin"})
+    assert status.status_code == 200
+    body = status.json()
+    assert "configured" in body
+    assert "pending" in body
+
+    run = client.post("/admin/sync/run", headers={"X-Role": "admin"})
+    assert run.status_code == 200
+    assert "ok" in run.json()
