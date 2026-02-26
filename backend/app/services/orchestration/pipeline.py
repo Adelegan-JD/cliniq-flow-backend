@@ -8,6 +8,7 @@ from app.services.nlp.symptom_extractor import SymptomExtractor
 from app.services.nlp.urgency_scorer import UrgencyScorer
 from app.services.nlp.validators import ClinicalValidator
 from app.services.rag.guardrails import apply_guardrails
+from app.utils.storage import log_intake
 
 
 def process_intake(intake: dict) -> dict:
@@ -35,9 +36,10 @@ def process_intake(intake: dict) -> dict:
     soap_note = formatter.format(structured_data)
     validation = validator.validate_all(structured_data, soap_note)
     urgency = urgency_scorer.score(structured_data)
+    urgency_level = _to_contract_urgency(urgency.level.value)
 
     triage = {
-        "urgency_level": urgency.level.value.upper(),
+        "urgency_level": urgency_level,
         "red_flags": urgency.critical_flags,
         "reasons": urgency.reasons or ["No critical triage reasons identified"],
     }
@@ -51,11 +53,19 @@ def process_intake(intake: dict) -> dict:
     safe = apply_guardrails("\n".join(f"{k}: {v}" for k, v in soap.items()))
     disclaimer = safe.get("disclaimer", soap_note.disclaimer)
 
+    event_id = str(uuid.uuid4())
+    log_intake(
+        event_id=event_id,
+        visit_id=visit_id,
+        urgency_level=urgency_level,
+        red_flags=triage["red_flags"],
+    )
+
     response = {
         "visit_id": visit_id,
         "triage": triage,
         "summary": {"soap": soap, "disclaimer": disclaimer},
-        "audit_event_id": str(uuid.uuid4()),
+        "audit_event_id": event_id,
     }
 
     # TODO: Persist validation/audit details once storage layer is wired.
@@ -63,3 +73,13 @@ def process_intake(intake: dict) -> dict:
         response["validation_warnings"] = validation.warnings
 
     return response
+
+
+def _to_contract_urgency(raw_level: str) -> str:
+    mapping = {
+        "immediate": "EMERGENCY",
+        "urgent": "HIGH",
+        "standard": "MEDIUM",
+        "non_urgent": "LOW",
+    }
+    return mapping.get((raw_level or "").lower(), "LOW")
