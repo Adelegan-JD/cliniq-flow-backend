@@ -1,6 +1,6 @@
 # CLINIQ-FLOW API Contract v1 (Friday Demo)
 
-Base URL: http://localhost:8000
+Base URL: <http://localhost:8000>
 Urgency enum: LOW | MEDIUM | HIGH | EMERGENCY
 
 ## POST /ai/process_intake
@@ -33,7 +33,7 @@ Output:
   "audit_event_id": "uuid"
 }
 
-## POST /ai/pdose_check
+## POST /ai/dose_check
 
 Input:
 {
@@ -49,13 +49,13 @@ Output:
 {
   "safe": false,
   "warnings": ["Dose exceeds recommended mg/kg/day range"],
-  "recommended_range_mg_per_day": [360, 540],
+  "recommended_range_mg_per_day": {"min": 360, "max": 540},
   "max_mg_per_day": 540,
   "event_id": "uuid",
   "allow_override": true
 }
 
-## GET/admin/metrics
+## GET /admin/metrics
 
 Output:
 {
@@ -74,3 +74,50 @@ Error format
   }
 }
 
+## POST /med-orders/{id}/override
+
+Input:
+
+{
+  "reason": "Clinical judgment based on patient history"
+}
+
+Output:
+
+{
+  "override_logged": true,
+  "event_id": "uuid"
+}
+
+## GET /health
+
+Output:
+
+{
+  "status": "ok"
+}
+
+### Field Validation Rules
+
+- visit_id: required, UUID
+- age_years: required, integer >= 0
+- weight_kg: required, float > 0
+- symptoms_text: required, non-empty string
+- duration_days: optional, integer >= 0
+- vitals: optional object
+
+- drug: required, string
+- frequency_per_day: required, integer >= 1
+- chosen_dose_mg_per_day: required, integer > 0
+
+### HTTP Status Codes
+
+200 — Success  
+400 — Validation Error  
+404 — Resource Not Found  
+500 — Internal Server Error  
+
+### Privacy & Safety
+
+All intake text is de-identified before processing and storage.
+The system provides decision support only and does not diagnose or prescribe.

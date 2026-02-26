@@ -146,7 +146,7 @@ Swagger Docs:
 
 ### Adeboye
 
-* SQLite persistence
+* Postgres persistence
 * Visit linking
 
 ### Ayomide
