@@ -51,10 +51,12 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.api.router import api_router
 
 
-from api.nlp_routes import router as nlp_router
+from app.api.nlp_routes import router as nlp_router
 from dotenv import load_dotenv
+
 load_dotenv()  # Load environment variables from .env file
 
 app = FastAPI(
@@ -73,6 +75,8 @@ app.add_middleware(
 
 # Register NLP routes
 app.include_router(nlp_router)
+
+app.include_router(api_router, prefix="/api")
 
 
 
