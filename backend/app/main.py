@@ -16,9 +16,13 @@ from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 
 from app.api.admin_routes import router as admin_router
+from app.api.asr_routes import router as asr_router
+from app.api.clinical_routes import router as clinical_router
 from app.api.doctor_routes import router as doctor_router
+from app.api.nurse_routes import router as nurse_router
 from app.api.nlp_routes import router as nlp_router
 from app.api.orchestration_routes import router as orchestration_router
+from app.api.record_officer_routes import router as record_officer_router
 from app.utils.errors import error_payload
 from app.utils.storage import init_db
 
@@ -40,7 +44,11 @@ app.add_middleware(
 
 # Keep existing NLP routes for frontend compatibility
 app.include_router(nlp_router)
+app.include_router(asr_router)
 app.include_router(orchestration_router, prefix="/ai", tags=["Orchestration"])
+app.include_router(clinical_router)
+app.include_router(nurse_router)
+app.include_router(record_officer_router)
 app.include_router(admin_router, prefix="/admin", tags=["Admin"])
 app.include_router(doctor_router, tags=["Doctor"])
 

@@ -1,3 +1,10 @@
+"""Unified data-access layer for CLINIQ-FLOW.
+
+This file hides database details from route handlers.
+Routes call simple functions like `create_patient(...)` or `get_metrics()`,
+and this module writes/reads from either local SQLite or local Postgres.
+"""
+
 from __future__ import annotations
 
 import json
@@ -60,6 +67,85 @@ def _init_postgres() -> None:
     with _postgres_connect() as conn:
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS patients (
+                id TEXT PRIMARY KEY,
+                full_name TEXT NOT NULL,
+                date_of_birth TEXT,
+                gender TEXT,
+                phone TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS visits (
+                id TEXT PRIMARY KEY,
+                patient_id TEXT NOT NULL,
+                visit_status TEXT NOT NULL DEFAULT 'open',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS intakes (
+                id TEXT PRIMARY KEY,
+                visit_id TEXT NOT NULL,
+                transcript TEXT NOT NULL,
+                normalized_text TEXT,
+                structured_json JSONB,
+                urgency_level TEXT,
+                red_flags_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+                summary_json JSONB,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS med_orders (
+                id TEXT PRIMARY KEY,
+                visit_id TEXT NOT NULL,
+                drug_name TEXT NOT NULL,
+                dose_mg_per_day INTEGER NOT NULL,
+                frequency_per_day INTEGER NOT NULL,
+                dose_check_result JSONB,
+                is_safe BOOLEAN NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS doctor_conversations (
+                id TEXT PRIMARY KEY,
+                visit_id TEXT NOT NULL,
+                transcript TEXT NOT NULL,
+                structured_json JSONB,
+                soap_json JSONB,
+                urgency_json JSONB,
+                validation_json JSONB,
+                audio_reference TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id TEXT PRIMARY KEY,
+                actor_role TEXT NOT NULL,
+                action TEXT NOT NULL,
+                entity_type TEXT NOT NULL,
+                entity_id TEXT NOT NULL,
+                metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS intake_events (
                 event_id TEXT PRIMARY KEY,
                 visit_id TEXT NOT NULL,
@@ -108,6 +194,85 @@ def _init_postgres() -> None:
 
 def _init_sqlite() -> None:
     with _sqlite_connect() as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS patients (
+                id TEXT PRIMARY KEY,
+                full_name TEXT NOT NULL,
+                date_of_birth TEXT,
+                gender TEXT,
+                phone TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS visits (
+                id TEXT PRIMARY KEY,
+                patient_id TEXT NOT NULL,
+                visit_status TEXT NOT NULL DEFAULT 'open',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS intakes (
+                id TEXT PRIMARY KEY,
+                visit_id TEXT NOT NULL,
+                transcript TEXT NOT NULL,
+                normalized_text TEXT,
+                structured_json TEXT,
+                urgency_level TEXT,
+                red_flags_json TEXT NOT NULL,
+                summary_json TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS med_orders (
+                id TEXT PRIMARY KEY,
+                visit_id TEXT NOT NULL,
+                drug_name TEXT NOT NULL,
+                dose_mg_per_day INTEGER NOT NULL,
+                frequency_per_day INTEGER NOT NULL,
+                dose_check_result TEXT,
+                is_safe INTEGER NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS doctor_conversations (
+                id TEXT PRIMARY KEY,
+                visit_id TEXT NOT NULL,
+                transcript TEXT NOT NULL,
+                structured_json TEXT,
+                soap_json TEXT,
+                urgency_json TEXT,
+                validation_json TEXT,
+                audio_reference TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id TEXT PRIMARY KEY,
+                actor_role TEXT NOT NULL,
+                action TEXT NOT NULL,
+                entity_type TEXT NOT NULL,
+                entity_id TEXT NOT NULL,
+                metadata_json TEXT NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS intake_events (
@@ -353,3 +518,337 @@ def mark_events_synced(table: str, event_ids: list[str]) -> None:
             tuple(event_ids),
         )
         conn.commit()
+
+
+def create_patient(patient_id: str, full_name: str, date_of_birth: str | None, gender: str | None, phone: str | None) -> dict[str, Any]:
+    init_db()
+    if _backend() == "postgres":
+        with _postgres_connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO patients (id, full_name, date_of_birth, gender, phone)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (patient_id, full_name, date_of_birth, gender, phone),
+            )
+            row = conn.execute("SELECT * FROM patients WHERE id = %s", (patient_id,)).fetchone()
+            conn.commit()
+            return dict(row)
+    with _sqlite_connect() as conn:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO patients (id, full_name, date_of_birth, gender, phone)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (patient_id, full_name, date_of_birth, gender, phone),
+        )
+        row = conn.execute("SELECT * FROM patients WHERE id = ?", (patient_id,)).fetchone()
+        conn.commit()
+        return dict(row)
+
+
+def get_patient(patient_id: str) -> dict[str, Any] | None:
+    init_db()
+    if _backend() == "postgres":
+        with _postgres_connect() as conn:
+            row = conn.execute("SELECT * FROM patients WHERE id = %s", (patient_id,)).fetchone()
+            return dict(row) if row else None
+    with _sqlite_connect() as conn:
+        row = conn.execute("SELECT * FROM patients WHERE id = ?", (patient_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def create_visit(visit_id: str, patient_id: str, visit_status: str = "open") -> dict[str, Any]:
+    init_db()
+    if _backend() == "postgres":
+        with _postgres_connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO visits (id, patient_id, visit_status)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (visit_id, patient_id, visit_status),
+            )
+            row = conn.execute("SELECT * FROM visits WHERE id = %s", (visit_id,)).fetchone()
+            conn.commit()
+            return dict(row)
+    with _sqlite_connect() as conn:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO visits (id, patient_id, visit_status)
+            VALUES (?, ?, ?)
+            """,
+            (visit_id, patient_id, visit_status),
+        )
+        row = conn.execute("SELECT * FROM visits WHERE id = ?", (visit_id,)).fetchone()
+        conn.commit()
+        return dict(row)
+
+
+def get_visit(visit_id: str) -> dict[str, Any] | None:
+    init_db()
+    if _backend() == "postgres":
+        with _postgres_connect() as conn:
+            row = conn.execute("SELECT * FROM visits WHERE id = %s", (visit_id,)).fetchone()
+            return dict(row) if row else None
+    with _sqlite_connect() as conn:
+        row = conn.execute("SELECT * FROM visits WHERE id = ?", (visit_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def create_intake_record(
+    intake_id: str,
+    visit_id: str,
+    transcript: str,
+    normalized_text: str,
+    structured_json: dict[str, Any],
+    urgency_level: str,
+    red_flags: list[str],
+    summary_json: dict[str, Any],
+) -> None:
+    init_db()
+    if _backend() == "postgres":
+        with _postgres_connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO intakes (
+                    id, visit_id, transcript, normalized_text, structured_json, urgency_level, red_flags_json, summary_json
+                )
+                VALUES (%s, %s, %s, %s, %s::jsonb, %s, %s::jsonb, %s::jsonb)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (
+                    intake_id,
+                    visit_id,
+                    transcript,
+                    normalized_text,
+                    json.dumps(structured_json),
+                    urgency_level,
+                    json.dumps(red_flags),
+                    json.dumps(summary_json),
+                ),
+            )
+            conn.commit()
+        return
+    with _sqlite_connect() as conn:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO intakes (
+                id, visit_id, transcript, normalized_text, structured_json, urgency_level, red_flags_json, summary_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                intake_id,
+                visit_id,
+                transcript,
+                normalized_text,
+                json.dumps(structured_json),
+                urgency_level,
+                json.dumps(red_flags),
+                json.dumps(summary_json),
+            ),
+        )
+        conn.commit()
+
+
+def get_latest_intake(visit_id: str) -> dict[str, Any] | None:
+    init_db()
+    if _backend() == "postgres":
+        with _postgres_connect() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM intakes
+                WHERE visit_id = %s
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (visit_id,),
+            ).fetchone()
+            return dict(row) if row else None
+    with _sqlite_connect() as conn:
+        row = conn.execute(
+            """
+            SELECT * FROM intakes
+            WHERE visit_id = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (visit_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def create_med_order(
+    med_order_id: str,
+    visit_id: str,
+    drug_name: str,
+    dose_mg_per_day: int,
+    frequency_per_day: int,
+    dose_check_result: dict[str, Any],
+    is_safe: bool,
+) -> dict[str, Any]:
+    init_db()
+    if _backend() == "postgres":
+        with _postgres_connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO med_orders (
+                    id, visit_id, drug_name, dose_mg_per_day, frequency_per_day, dose_check_result, is_safe
+                )
+                VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (med_order_id, visit_id, drug_name, dose_mg_per_day, frequency_per_day, json.dumps(dose_check_result), is_safe),
+            )
+            row = conn.execute("SELECT * FROM med_orders WHERE id = %s", (med_order_id,)).fetchone()
+            conn.commit()
+            return dict(row)
+    with _sqlite_connect() as conn:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO med_orders (
+                id, visit_id, drug_name, dose_mg_per_day, frequency_per_day, dose_check_result, is_safe
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (med_order_id, visit_id, drug_name, dose_mg_per_day, frequency_per_day, json.dumps(dose_check_result), int(is_safe)),
+        )
+        row = conn.execute("SELECT * FROM med_orders WHERE id = ?", (med_order_id,)).fetchone()
+        conn.commit()
+        return dict(row)
+
+
+def list_visit_med_orders(visit_id: str) -> list[dict[str, Any]]:
+    init_db()
+    if _backend() == "postgres":
+        with _postgres_connect() as conn:
+            rows = conn.execute("SELECT * FROM med_orders WHERE visit_id = %s ORDER BY created_at DESC", (visit_id,)).fetchall()
+            return [dict(r) for r in rows]
+    with _sqlite_connect() as conn:
+        rows = conn.execute("SELECT * FROM med_orders WHERE visit_id = ? ORDER BY created_at DESC", (visit_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def create_doctor_conversation(
+    conversation_id: str,
+    visit_id: str,
+    transcript: str,
+    structured_json: dict[str, Any],
+    soap_json: dict[str, Any],
+    urgency_json: dict[str, Any],
+    validation_json: dict[str, Any],
+    audio_reference: str | None,
+) -> dict[str, Any]:
+    init_db()
+    if _backend() == "postgres":
+        with _postgres_connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO doctor_conversations (
+                    id, visit_id, transcript, structured_json, soap_json, urgency_json, validation_json, audio_reference
+                )
+                VALUES (%s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb, %s)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (
+                    conversation_id,
+                    visit_id,
+                    transcript,
+                    json.dumps(structured_json),
+                    json.dumps(soap_json),
+                    json.dumps(urgency_json),
+                    json.dumps(validation_json),
+                    audio_reference,
+                ),
+            )
+            row = conn.execute("SELECT * FROM doctor_conversations WHERE id = %s", (conversation_id,)).fetchone()
+            conn.commit()
+            return dict(row)
+    with _sqlite_connect() as conn:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO doctor_conversations (
+                id, visit_id, transcript, structured_json, soap_json, urgency_json, validation_json, audio_reference
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                conversation_id,
+                visit_id,
+                transcript,
+                json.dumps(structured_json),
+                json.dumps(soap_json),
+                json.dumps(urgency_json),
+                json.dumps(validation_json),
+                audio_reference,
+            ),
+        )
+        row = conn.execute("SELECT * FROM doctor_conversations WHERE id = ?", (conversation_id,)).fetchone()
+        conn.commit()
+        return dict(row)
+
+
+def get_latest_doctor_conversation(visit_id: str) -> dict[str, Any] | None:
+    init_db()
+    if _backend() == "postgres":
+        with _postgres_connect() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM doctor_conversations
+                WHERE visit_id = %s
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (visit_id,),
+            ).fetchone()
+            return dict(row) if row else None
+    with _sqlite_connect() as conn:
+        row = conn.execute(
+            """
+            SELECT * FROM doctor_conversations
+            WHERE visit_id = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (visit_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def add_audit_log(audit_id: str, actor_role: str, action: str, entity_type: str, entity_id: str, metadata: dict[str, Any]) -> None:
+    init_db()
+    if _backend() == "postgres":
+        with _postgres_connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO audit_logs (id, actor_role, action, entity_type, entity_id, metadata_json)
+                VALUES (%s, %s, %s, %s, %s, %s::jsonb)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                (audit_id, actor_role, action, entity_type, entity_id, json.dumps(metadata)),
+            )
+            conn.commit()
+        return
+    with _sqlite_connect() as conn:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO audit_logs (id, actor_role, action, entity_type, entity_id, metadata_json)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (audit_id, actor_role, action, entity_type, entity_id, json.dumps(metadata)),
+        )
+        conn.commit()
+
+
+def list_audit_logs(limit: int = 100) -> list[dict[str, Any]]:
+    init_db()
+    if _backend() == "postgres":
+        with _postgres_connect() as conn:
+            rows = conn.execute("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT %s", (limit,)).fetchall()
+            return [dict(r) for r in rows]
+    with _sqlite_connect() as conn:
+        rows = conn.execute("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
+        return [dict(r) for r in rows]

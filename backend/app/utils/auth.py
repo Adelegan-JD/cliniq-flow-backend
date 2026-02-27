@@ -1,3 +1,9 @@
+"""Simple role-based access control helpers.
+
+Endpoints use `require_role(...)` to enforce who can call them by checking
+the `X-Role` request header.
+"""
+
 from __future__ import annotations
 
 from typing import Callable

@@ -23,11 +23,11 @@ from app.models.clinical_schema import (
 
 logger = logging.getLogger("cliniq.nlp.soap")
 
-SEVERITY_EMOJI = {
-    Severity.LOW: "🟢",
-    Severity.MODERATE: "🟡",
-    Severity.HIGH: "🔴",
-    Severity.CRITICAL: "🚨",
+SEVERITY_LABEL = {
+    Severity.LOW: "LOW",
+    Severity.MODERATE: "MODERATE",
+    Severity.HIGH: "HIGH",
+    Severity.CRITICAL: "CRITICAL",
 }
 
 
@@ -88,7 +88,7 @@ class SOAPFormatter:
         if data.symptoms:
             symptom_lines = []
             for symptom in data.symptoms:
-                line = f"• {symptom.name.replace('_', ' ').title()}"
+                line = f"- {symptom.name.replace('_', ' ').title()}"
                 extras = []
                 if symptom.duration:
                     extras.append(f"duration: {symptom.duration}")
@@ -139,7 +139,7 @@ class SOAPFormatter:
                 abnormal_tag = "ABNORMAL" if v.is_abnormal else ""
                 unit_str = f" {v.unit}" if v.unit else ""
                 normal_range_str = f" (normal: {v.normal_range})" if v.normal_range else ""
-                vital_lines.append(f"• {v.name.replace('_', ' ').title()}: {v.value}{unit_str}{normal_range_str}{abnormal_tag}")
+                vital_lines.append(f"- {v.name.replace('_', ' ').title()}: {v.value}{unit_str}{normal_range_str}{abnormal_tag}")
             parts.append("Vital Signs:\n" + "\n".join(vital_lines))
         else:
             parts.append("Vital Signs: Not documented in transcript")
@@ -196,8 +196,8 @@ class SOAPFormatter:
         if data.clinical_flags:
             flag_lines = []
             for flag in data.clinical_flags:
-                icon = SEVERITY_EMOJI.get(flag.severity)
-                flag_lines.append(f"  {icon} [{flag.flag_type.upper()}] {flag.description}")
+                level = SEVERITY_LABEL.get(flag.severity, "UNKNOWN")
+                flag_lines.append(f"  [{level}] [{flag.flag_type.upper()}] {flag.description}")
             parts.append("Clinical Alerts:\n" + "\n".join(flag_lines))
 
         # If cardiac risk flagged, add a focused clinical concern paragraph

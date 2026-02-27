@@ -1,3 +1,8 @@
+"""Quick smoke-test script for manual demo verification.
+
+Sends a small end-to-end request sequence to a running local backend.
+"""
+
 from __future__ import annotations
 
 import json

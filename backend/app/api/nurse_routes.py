@@ -1,17 +1,17 @@
-"""AI orchestration endpoints.
+"""Nurse-specific endpoints.
 
-This file exposes core demo AI actions:
-intake processing, dose checks, triage-only, and summary-only requests.
+These routes cover intake submission, triage checks, summary generation,
+and reading latest intake result for a visit.
 """
 
 from __future__ import annotations
 
+import json
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from app.schemas.dose import DoseCheckRequest, DoseCheckResponse
 from app.schemas.intake import IntakeRequest
 from app.services.nlp.soap_formatter import SOAPFormatter
 from app.services.nlp.symptom_extractor import SymptomExtractor
@@ -21,17 +21,9 @@ from app.utils.auth import require_role
 from app.utils.errors import error_payload
 from app.utils.storage import add_audit_log
 from app.utils.storage import create_intake_record
-from app.utils.storage import log_dose_check
+from app.utils.storage import get_latest_intake
 
-router = APIRouter()
-
-# Guideline subset for demo use (pediatric mg/kg/day + max daily).
-FORMULARY = {
-    "amoxicillin": {"min_mg_per_kg_day": 20.0, "max_mg_per_kg_day": 40.0, "max_daily_mg": 1000.0},
-    "paracetamol": {"min_mg_per_kg_day": 40.0, "max_mg_per_kg_day": 60.0, "max_daily_mg": 4000.0},
-    "ibuprofen": {"min_mg_per_kg_day": 20.0, "max_mg_per_kg_day": 30.0, "max_daily_mg": 2400.0},
-    "artemether_lumefantrine": {"min_mg_per_kg_day": 4.0, "max_mg_per_kg_day": 8.0, "max_daily_mg": 480.0},
-}
+router = APIRouter(prefix="/nurse", tags=["Nurse"])
 
 
 class TriageRequest(BaseModel):
@@ -48,10 +40,10 @@ class SummaryRequest(BaseModel):
     patient_sex: str | None = None
 
 
-@router.post("/process_intake")
+@router.post("/process-intake")
 def process_intake_route(
     payload: IntakeRequest,
-    _role: str = Depends(require_role("nurse", "doctor", "admin")),
+    _role: str = Depends(require_role("nurse", "admin")),
 ):
     try:
         response = process_intake(payload.model_dump())
@@ -68,7 +60,7 @@ def process_intake_route(
         add_audit_log(
             audit_id=str(uuid.uuid4()),
             actor_role=_role,
-            action="process_intake",
+            action="nurse_process_intake",
             entity_type="visit",
             entity_id=payload.visit_id,
             metadata={"audit_event_id": response.get("audit_event_id")},
@@ -81,74 +73,10 @@ def process_intake_route(
         ) from exc
 
 
-@router.post("/dose-check", response_model=DoseCheckResponse)
-def dose_check_route(
-    payload: DoseCheckRequest,
-    _role: str = Depends(require_role("doctor", "admin")),
-) -> DoseCheckResponse:
-    drug_key = payload.drug.strip().lower()
-    rule = FORMULARY.get(drug_key)
-    event_id = str(uuid.uuid4())
-
-    if rule is None:
-        # Safe fallback for unknown drugs in blocker pass.
-        response = DoseCheckResponse(
-            safe=True,
-            warnings=["No formulary rule found for drug; clinician review required"],
-            recommended_range_mg_per_day={"min": 0, "max": payload.chosen_dose_mg_per_day},
-            max_mg_per_day=payload.chosen_dose_mg_per_day,
-            event_id=event_id,
-            allow_override=True,
-        )
-        log_dose_check(
-            event_id=event_id,
-            visit_id=payload.visit_id,
-            drug_name=payload.drug,
-            chosen_dose_mg_per_day=payload.chosen_dose_mg_per_day,
-            safe=response.safe,
-            warnings=response.warnings,
-        )
-        return response
-
-    recommended_min = round(rule["min_mg_per_kg_day"] * payload.weight_kg)
-    recommended_max = round(rule["max_mg_per_kg_day"] * payload.weight_kg)
-    max_daily = round(min(rule["max_daily_mg"], recommended_max))
-
-    warnings = []
-    safe = True
-    if payload.chosen_dose_mg_per_day < recommended_min:
-        safe = False
-        warnings.append("Dose is below recommended mg/kg/day range")
-    if payload.chosen_dose_mg_per_day > recommended_max:
-        safe = False
-        warnings.append("Dose exceeds recommended mg/kg/day range")
-    if payload.chosen_dose_mg_per_day > max_daily:
-        safe = False
-        warnings.append("Dose exceeds max daily limit")
-
-    response = DoseCheckResponse(
-        safe=safe,
-        warnings=warnings,
-        recommended_range_mg_per_day={"min": recommended_min, "max": recommended_max},
-        max_mg_per_day=max_daily,
-        event_id=event_id,
-        allow_override=True,
-    )
-    log_dose_check(
-        event_id=event_id,
-        visit_id=payload.visit_id,
-        drug_name=payload.drug,
-        chosen_dose_mg_per_day=payload.chosen_dose_mg_per_day,
-        safe=response.safe,
-        warnings=response.warnings,
-    )
-    return response
-
-
 @router.post("/triage")
 def triage_route(
     payload: TriageRequest,
-    _role: str = Depends(require_role("nurse", "doctor", "admin")),
+    _role: str = Depends(require_role("nurse", "admin")),
 ):
     try:
         extractor = SymptomExtractor()
@@ -178,7 +106,7 @@ def triage_route(
 @router.post("/summary")
 def summary_route(
     payload: SummaryRequest,
-    _role: str = Depends(require_role("nurse", "doctor", "admin")),
+    _role: str = Depends(require_role("nurse", "admin")),
 ):
     try:
         extractor = SymptomExtractor()
@@ -207,3 +135,22 @@ def summary_route(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_payload("INTERNAL_ERROR", "Unable to generate summary", str(exc)),
         ) from exc
+
+
+@router.get("/visits/{visit_id}/latest-intake")
+def latest_intake_route(
+    visit_id: str,
+    _role: str = Depends(require_role("nurse", "doctor", "admin")),
+):
+    row = get_latest_intake(visit_id)
+    if not row:
+        raise HTTPException(status_code=404, detail=error_payload("NOT_FOUND", "No intake found for visit", {"visit_id": visit_id}))
+
+    for field in ("structured_json", "red_flags_json", "summary_json"):
+        raw = row.get(field)
+        if isinstance(raw, str):
+            try:
+                row[field] = json.loads(raw)
+            except Exception:
+                pass
+    return row

@@ -1,3 +1,8 @@
+"""Dose-check request/response schemas.
+
+Used by the doctor medication safety endpoint.
+"""
+
 from __future__ import annotations
 
 from typing import Dict, List

@@ -1,3 +1,9 @@
+"""One-way sync worker for local events -> Supabase.
+
+This service reads local unsynced events, upserts them into Supabase tables,
+then marks local rows as synced.
+"""
+
 from __future__ import annotations
 
 import json

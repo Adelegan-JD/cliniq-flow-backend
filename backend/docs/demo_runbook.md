@@ -39,6 +39,20 @@ This executes:
 - `GET /admin/sync/status` as `X-Role: admin`
 - `POST /admin/sync/run` as `X-Role: admin`
 
+## UI routing groups
+
+Record Officer frontend can use:
+- `POST /record-officer/patients`
+- `GET /record-officer/patients/{patient_id}`
+- `POST /record-officer/visits`
+- `GET /record-officer/visits/{visit_id}`
+
+Nurse frontend can use:
+- `POST /nurse/process-intake`
+- `POST /nurse/triage`
+- `POST /nurse/summary`
+- `GET /nurse/visits/{visit_id}/latest-intake`
+
 ## Required headers by role
 
 - Nurse/doctor/admin routes require `X-Role`.
