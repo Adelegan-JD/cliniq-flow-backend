@@ -1,3 +1,8 @@
+"""Standard API error payload helper.
+
+Keeps error responses consistent across all endpoints.
+"""
+
 from __future__ import annotations
 
 from typing import Any

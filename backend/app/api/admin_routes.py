@@ -1,3 +1,9 @@
+"""Admin-facing endpoints.
+
+These routes expose system-wide monitoring information such as metrics,
+sync status, and audit logs. They are protected with admin role checks.
+"""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Depends
@@ -5,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from app.services.sync.supabase_sync import SupabaseSyncService
 from app.utils.auth import require_role
 from app.utils.storage import get_metrics
+from app.utils.storage import list_audit_logs
 from pydantic import BaseModel, EmailStr
 from supabase import create_client, Client
 from app.dependency.dependencies import verify_admin
@@ -16,15 +23,18 @@ load_dotenv()
 
 router = APIRouter()
 
+
 class AdminCreateUserRequest(BaseModel):
     email: EmailStr
     # Optional: If you want to set a temporary password
     password: str | None = None
     role: str | None = None
 
+
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 supabase_admin: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+
 
 @router.post("/invite-user")
 async def invite_user(
@@ -41,27 +51,13 @@ async def invite_user(
                     "role": request.role,
                     "created_by_admin": True,
                     "needs_password_update": True,
-                    "created_by": admin_user.email
+                    "created_by": admin_user.email,
                 },
             }
         )
         return {"message": f"User created by admin: {admin_user.email}"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-@router.get("/metrics")
-def admin_metrics(_role: str = Depends(require_role("admin"))):
-    return get_metrics()
-
-
-@router.get("/sync/status")
-def sync_status(_role: str = Depends(require_role("admin"))):
-    return SupabaseSyncService().status()
-
-
-@router.post("/sync/run")
-def run_sync(_role: str = Depends(require_role("admin"))):
-    return SupabaseSyncService().sync_once()
 
 
 @router.get("/users")
@@ -100,12 +96,38 @@ async def list_users(admin_user=Depends(verify_admin)):
         users = []
         for u in raw_users:
             u_dict = to_dict(u)
-            metadata = to_dict(u_dict.get("user_metadata") or u_dict.get("raw_user_meta_data") or u_dict.get("raw_user_metadata"))
+            metadata = to_dict(
+                u_dict.get("user_metadata")
+                or u_dict.get("raw_user_meta_data")
+                or u_dict.get("raw_user_metadata")
+            )
             display_name = u_dict.get("display_name") or metadata.get("display_name")
-            users.append({
-                "display_name": display_name,
-                "role": metadata.get("role"),
-            })
+            users.append(
+                {
+                    "display_name": display_name,
+                    "role": metadata.get("role"),
+                }
+            )
         return users
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/metrics")
+def admin_metrics(_role: str = Depends(require_role("admin"))):
+    return get_metrics()
+
+
+@router.get("/sync/status")
+def sync_status(_role: str = Depends(require_role("admin"))):
+    return SupabaseSyncService().status()
+
+
+@router.post("/sync/run")
+def run_sync(_role: str = Depends(require_role("admin"))):
+    return SupabaseSyncService().sync_once()
+
+
+@router.get("/logs")
+def admin_logs(limit: int = 100, _role: str = Depends(require_role("admin"))):
+    return {"items": list_audit_logs(limit=limit)}

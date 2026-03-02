@@ -1,3 +1,8 @@
+"""API contract tests.
+
+These tests verify that key endpoints exist and return expected response shapes.
+"""
+
 from __future__ import annotations
 
 import os
@@ -132,3 +137,145 @@ def test_sync_scaffold_endpoints(tmp_path: Path) -> None:
     run = client.post("/admin/sync/run", headers={"X-Role": "admin"})
     assert run.status_code == 200
     assert "ok" in run.json()
+
+
+def test_full_demo_endpoints_flow(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+
+    ro_patient = client.post(
+        "/record-officer/patients",
+        json={"full_name": "RO Child", "date_of_birth": "2021-06-01", "gender": "female"},
+        headers={"X-Role": "record_officer"},
+    )
+    assert ro_patient.status_code == 200
+    ro_patient_id = ro_patient.json()["id"]
+
+    ro_visit = client.post(
+        "/record-officer/visits",
+        json={"patient_id": ro_patient_id, "visit_status": "open"},
+        headers={"X-Role": "record_officer"},
+    )
+    assert ro_visit.status_code == 200
+    ro_visit_id = ro_visit.json()["id"]
+
+    nurse_intake = client.post(
+        "/nurse/process-intake",
+        json={
+            "visit_id": ro_visit_id,
+            "age_years": 5,
+            "weight_kg": 18,
+            "symptoms_text": "fever and cough for one day",
+            "duration_days": 1,
+            "vitals": {"rr": 34},
+        },
+        headers={"X-Role": "nurse"},
+    )
+    assert nurse_intake.status_code == 200
+
+    nurse_triage = client.post(
+        "/nurse/triage",
+        json={"visit_id": ro_visit_id, "transcript": "fever and fast breathing", "patient_age": "5 years"},
+        headers={"X-Role": "nurse"},
+    )
+    assert nurse_triage.status_code == 200
+
+    nurse_summary = client.post(
+        "/nurse/summary",
+        json={"visit_id": ro_visit_id, "transcript": "fever and cough", "patient_age": "5 years"},
+        headers={"X-Role": "nurse"},
+    )
+    assert nurse_summary.status_code == 200
+
+    nurse_latest = client.get(f"/nurse/visits/{ro_visit_id}/latest-intake", headers={"X-Role": "nurse"})
+    assert nurse_latest.status_code == 200
+
+    patient = client.post(
+        "/patients",
+        json={"full_name": "Test Child", "date_of_birth": "2021-06-01", "gender": "female", "phone": "08030000000"},
+        headers={"X-Role": "record_officer"},
+    )
+    assert patient.status_code == 200
+    patient_id = patient.json()["id"]
+
+    visit = client.post(
+        "/visits",
+        json={"patient_id": patient_id, "visit_status": "open"},
+        headers={"X-Role": "record_officer"},
+    )
+    assert visit.status_code == 200
+    visit_id = visit.json()["id"]
+
+    triage = client.post(
+        "/ai/triage",
+        json={"visit_id": visit_id, "transcript": "child has fever and difficulty breathing", "patient_age": "5 years"},
+        headers={"X-Role": "nurse"},
+    )
+    assert triage.status_code == 200
+    assert "triage" in triage.json()
+
+    summary = client.post(
+        "/ai/summary",
+        json={"visit_id": visit_id, "transcript": "child has fever and cough for two days", "patient_age": "5 years"},
+        headers={"X-Role": "nurse"},
+    )
+    assert summary.status_code == 200
+    assert "summary" in summary.json()
+
+    intake = client.post(
+        "/ai/process_intake",
+        json={
+            "visit_id": visit_id,
+            "age_years": 5,
+            "weight_kg": 18,
+            "symptoms_text": "fever and fast breathing since yesterday",
+            "duration_days": 1,
+            "vitals": {"rr": 40, "temp_c": 39.2},
+        },
+        headers={"X-Role": "nurse"},
+    )
+    assert intake.status_code == 200
+
+    latest_intake = client.get(f"/visits/{visit_id}/latest-intake", headers={"X-Role": "doctor"})
+    assert latest_intake.status_code == 200
+
+    asr = client.post(
+        "/asr/transcribe",
+        json={"transcript_hint": "patient had fever and cough, no seizure"},
+        headers={"X-Role": "doctor"},
+    )
+    assert asr.status_code == 200
+    transcript = asr.json()["transcript"]
+
+    convo = client.post(
+        f"/visits/{visit_id}/doctor-conversation",
+        json={"transcript": transcript, "patient_age": "5 years"},
+        headers={"X-Role": "doctor", "X-Doctor-Id": "doc-1"},
+    )
+    assert convo.status_code == 200
+    assert "soap_note" in convo.json()
+
+    med_order = client.post(
+        "/med-orders",
+        json={
+            "visit_id": visit_id,
+            "drug_name": "amoxicillin",
+            "dose_mg_per_day": 600,
+            "frequency_per_day": 2,
+            "is_safe": True,
+            "dose_check_result": {"safe": True},
+        },
+        headers={"X-Role": "doctor"},
+    )
+    assert med_order.status_code == 200
+    med_order_id = med_order.json()["id"]
+
+    override = client.post(
+        f"/med-orders/{med_order_id}/override",
+        json={"reason": "Clinical judgment with close monitoring"},
+        headers={"X-Role": "doctor", "X-Doctor-Id": "doc-1"},
+    )
+    assert override.status_code == 200
+
+    logs = client.get("/admin/logs", headers={"X-Role": "admin"})
+    assert logs.status_code == 200
+    assert isinstance(logs.json().get("items"), list)

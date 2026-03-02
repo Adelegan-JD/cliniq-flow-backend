@@ -1,3 +1,8 @@
+"""Triage response schema.
+
+Represents urgency, red flags, and reasons shown in nurse/doctor UIs.
+"""
+
 from __future__ import annotations
 
 from typing import List
