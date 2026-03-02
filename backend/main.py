@@ -43,6 +43,7 @@ app.add_middleware(
 )
 
 # Keep existing NLP routes for frontend compatibility
+app.include_router(admin_router, prefix="/admin", tags=["Admin"])
 app.include_router(nlp_router)
 app.include_router(asr_router)
 app.include_router(orchestration_router, prefix="/ai", tags=["Orchestration"])
