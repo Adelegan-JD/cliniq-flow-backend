@@ -396,3 +396,9 @@ def format_conversation(segments: list) -> str:
 verify_key=verify_api_key
 diarized= diarize_and_transcribe
 formated= format_conversation
+# """ASR post-processing placeholder.
+
+# Use this module to clean transcripts (punctuation, casing, noise removal)
+# after raw speech-to-text conversion.
+# """
+
