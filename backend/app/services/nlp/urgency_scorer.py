@@ -13,7 +13,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import List
 
-from models.clinical_schema import (
+from app.models.clinical_schema import (
     ClinicalFlag,
     Severity,
     StructuredClinicalData,

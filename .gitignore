@@ -1,3 +1,11 @@
-.venv
-
+a_venv
+__pycache__/
+*.pyc
 .env
+
+backend/data/
+
+# Env files
+.env
+*.env
+backend/tests/.env

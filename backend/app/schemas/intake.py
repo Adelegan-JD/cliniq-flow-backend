@@ -1,3 +1,8 @@
+"""Intake request schema.
+
+Defines the nurse intake payload used for triage and summary processing.
+"""
+
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
 
