@@ -23,7 +23,7 @@ load_dotenv()  # Load environment variables from .env file
 
 from pydantic import ValidationError
 
-from models.clinical_schema import (
+from app.models.clinical_schema import (
     AllergyRecord,
     ClinicalFlag,
     ConfidenceLevel,
@@ -35,7 +35,7 @@ from models.clinical_schema import (
     Symptom,
     VitalSign,
 )
-from services.nlp.confidence_calculator import ConfidenceCalculator
+from app.services.nlp.confidence_calculator import ConfidenceCalculator
 
 logger = logging.getLogger("cliniq.nlp.extractor")
 

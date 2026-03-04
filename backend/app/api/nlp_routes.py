@@ -19,17 +19,17 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
-from models.clinical_schema import (
+from app.models.clinical_schema import (
     NLPRequest,
     NLPResponse,
     SOAPNote,
     StructuredClinicalData,
     ValidationResult,
 )
-from services.nlp.soap_formatter import SOAPFormatter
-from services.nlp.symptom_extractor import SymptomExtractor
-from services.nlp.validators import ClinicalValidator
-from services.nlp.urgency_scorer import UrgencyScorer
+from app.services.nlp.soap_formatter import SOAPFormatter
+from app.services.nlp.symptom_extractor import SymptomExtractor
+from app.services.nlp.urgency_scorer import UrgencyScorer
+from app.services.nlp.validators import ClinicalValidator
 
 router = APIRouter(prefix="/nlp", tags=["NLP & Clinical Structuring"])
 
