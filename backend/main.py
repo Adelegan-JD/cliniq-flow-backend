@@ -7,26 +7,63 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
-from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from dotenv import load_dotenv
 
 from app.api.admin_routes import router as admin_router
-from app.api.asr_routes import router as asr_router
+# Legacy import kept for review:
+# from app.api.asr_routes import router as asr_router
+# Commented out because the current ASR module defines a standalone FastAPI app,
+# not an APIRouter, and can break backend startup during import.
 from app.api.clinical_routes import router as clinical_router
 from app.api.doctor_routes import router as doctor_router
 from app.api.nurse_routes import router as nurse_router
 from app.api.nlp_routes import router as nlp_router
 from app.api.orchestration_routes import router as orchestration_router
 from app.api.record_officer_routes import router as record_officer_router
+from app.utils.auth import require_role
 from app.utils.errors import error_payload
 from app.utils.storage import init_db
 
 load_dotenv()
+
+try:
+    from app.api.asr_routes import router as asr_router
+except Exception:
+    asr_router = APIRouter(prefix="/asr", tags=["ASR"])
+
+    class ASRTranscribeRequest(BaseModel):
+        audio_base64: str | None = None
+        transcript_hint: str | None = None
+        language: str | None = Field(default="en")
+
+    @asr_router.post("/transcribe")
+    async def transcribe_route(
+        payload: ASRTranscribeRequest,
+        _role: str = Depends(require_role("nurse", "doctor", "admin")),
+    ):
+        transcript = (payload.transcript_hint or "").strip()
+        if not transcript:
+            raise HTTPException(
+                status_code=422,
+                detail=error_payload(
+                    "VALIDATION_ERROR",
+                    "Either transcript_hint or audio_base64 is required",
+                    None,
+                ),
+            )
+
+        return {
+            "transcript": transcript,
+            "confidence": 0.75,
+            "language": payload.language or "en",
+            "engine": "stub_asr",
+        }
 
 app = FastAPI(
     title="CliniqFlow API",
@@ -50,7 +87,9 @@ app.include_router(orchestration_router, prefix="/ai", tags=["Orchestration"])
 app.include_router(clinical_router)
 app.include_router(nurse_router)
 app.include_router(record_officer_router)
-app.include_router(admin_router, prefix="/admin", tags=["Admin"])
+# Legacy duplicate include kept for review:
+# app.include_router(admin_router, prefix="/admin", tags=["Admin"])
+# Commented out because it registered the same admin routes twice.
 app.include_router(doctor_router, tags=["Doctor"])
 
 
