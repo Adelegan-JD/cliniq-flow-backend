@@ -99,6 +99,7 @@ aiohttp==3.13.3
 supabase
 email-validator
 
+# peft==0.10.0
 # Optional ASR stack
 # Commented out because ASR is currently isolated from backend startup and pulls
 # in heavy ML dependencies. Uncomment when deploying the ASR path.
