@@ -17,6 +17,7 @@ from app.services.nlp.soap_formatter import SOAPFormatter
 from app.services.nlp.symptom_extractor import SymptomExtractor
 from app.services.nlp.urgency_scorer import UrgencyScorer
 from app.services.orchestration.pipeline import process_intake
+from app.utils.auth import AuthContext
 from app.utils.auth import require_role
 from app.utils.errors import error_payload
 from app.utils.storage import add_audit_log
@@ -51,7 +52,7 @@ class SummaryRequest(BaseModel):
 @router.post("/process_intake")
 def process_intake_route(
     payload: IntakeRequest,
-    _role: str = Depends(require_role("nurse", "doctor", "admin")),
+    auth: AuthContext = Depends(require_role("nurse", "doctor", "admin")),
 ):
     try:
         response = process_intake(payload.model_dump())
@@ -67,7 +68,7 @@ def process_intake_route(
         )
         add_audit_log(
             audit_id=str(uuid.uuid4()),
-            actor_role=_role,
+            actor_role=auth.role,
             action="process_intake",
             entity_type="visit",
             entity_id=payload.visit_id,
@@ -84,8 +85,9 @@ def process_intake_route(
 @router.post("/dose-check", response_model=DoseCheckResponse)
 def dose_check_route(
     payload: DoseCheckRequest,
-    _role: str = Depends(require_role("doctor", "admin")),
+    auth: AuthContext = Depends(require_role("doctor", "admin")),
 ) -> DoseCheckResponse:
+    _ = auth
     drug_key = payload.drug.strip().lower()
     rule = FORMULARY.get(drug_key)
     event_id = str(uuid.uuid4())
@@ -148,8 +150,9 @@ def dose_check_route(
 @router.post("/triage")
 def triage_route(
     payload: TriageRequest,
-    _role: str = Depends(require_role("nurse", "doctor", "admin")),
+    auth: AuthContext = Depends(require_role("nurse", "doctor", "admin")),
 ):
+    _ = auth
     try:
         extractor = SymptomExtractor()
         urgency_scorer = UrgencyScorer()
@@ -178,8 +181,9 @@ def triage_route(
 @router.post("/summary")
 def summary_route(
     payload: SummaryRequest,
-    _role: str = Depends(require_role("nurse", "doctor", "admin")),
+    auth: AuthContext = Depends(require_role("nurse", "doctor", "admin")),
 ):
+    _ = auth
     try:
         extractor = SymptomExtractor()
         formatter = SOAPFormatter()

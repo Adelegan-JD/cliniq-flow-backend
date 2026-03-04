@@ -16,6 +16,7 @@ from app.services.nlp.soap_formatter import SOAPFormatter
 from app.services.nlp.symptom_extractor import SymptomExtractor
 from app.services.nlp.urgency_scorer import UrgencyScorer
 from app.services.nlp.validators import ClinicalValidator
+from app.utils.auth import AuthContext
 from app.utils.auth import require_role
 from app.utils.errors import error_payload
 from app.utils.storage import add_audit_log
@@ -52,7 +53,7 @@ class DoctorConversationRequest(BaseModel):
 @router.post("/patients")
 def create_patient_route(
     payload: PatientCreateRequest,
-    _role: str = Depends(require_role("record_officer", "nurse", "doctor", "admin")),
+    auth: AuthContext = Depends(require_role("record_officer", "nurse", "doctor", "admin")),
 ):
     patient_id = str(uuid.uuid4())
     patient = create_patient(
@@ -64,7 +65,7 @@ def create_patient_route(
     )
     add_audit_log(
         audit_id=str(uuid.uuid4()),
-        actor_role=_role,
+        actor_role=auth.role,
         action="create_patient",
         entity_type="patient",
         entity_id=patient_id,
@@ -76,8 +77,9 @@ def create_patient_route(
 @router.get("/patients/{patient_id}")
 def get_patient_route(
     patient_id: str,
-    _role: str = Depends(require_role("record_officer", "nurse", "doctor", "admin")),
+    auth: AuthContext = Depends(require_role("record_officer", "nurse", "doctor", "admin")),
 ):
+    _ = auth
     patient = get_patient(patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail=error_payload("NOT_FOUND", "Patient not found", {"patient_id": patient_id}))
@@ -87,7 +89,7 @@ def get_patient_route(
 @router.post("/visits")
 def create_visit_route(
     payload: VisitCreateRequest,
-    _role: str = Depends(require_role("record_officer", "nurse", "doctor", "admin")),
+    auth: AuthContext = Depends(require_role("record_officer", "nurse", "doctor", "admin")),
 ):
     patient = get_patient(payload.patient_id)
     if not patient:
@@ -96,7 +98,7 @@ def create_visit_route(
     visit = create_visit(visit_id=visit_id, patient_id=payload.patient_id, visit_status=payload.visit_status)
     add_audit_log(
         audit_id=str(uuid.uuid4()),
-        actor_role=_role,
+        actor_role=auth.role,
         action="create_visit",
         entity_type="visit",
         entity_id=visit_id,
@@ -108,8 +110,9 @@ def create_visit_route(
 @router.get("/visits/{visit_id}")
 def get_visit_route(
     visit_id: str,
-    _role: str = Depends(require_role("record_officer", "nurse", "doctor", "admin")),
+    auth: AuthContext = Depends(require_role("record_officer", "nurse", "doctor", "admin")),
 ):
+    _ = auth
     visit = get_visit(visit_id)
     if not visit:
         raise HTTPException(status_code=404, detail=error_payload("NOT_FOUND", "Visit not found", {"visit_id": visit_id}))
@@ -119,8 +122,9 @@ def get_visit_route(
 @router.get("/visits/{visit_id}/latest-intake")
 def latest_intake_route(
     visit_id: str,
-    _role: str = Depends(require_role("nurse", "doctor", "admin")),
+    auth: AuthContext = Depends(require_role("nurse", "doctor", "admin")),
 ):
+    _ = auth
     row = get_latest_intake(visit_id)
     if not row:
         raise HTTPException(status_code=404, detail=error_payload("NOT_FOUND", "No intake found for visit", {"visit_id": visit_id}))
@@ -139,7 +143,7 @@ def latest_intake_route(
 def doctor_conversation_route(
     visit_id: str,
     payload: DoctorConversationRequest,
-    _role: str = Depends(require_role("doctor", "admin")),
+    auth: AuthContext = Depends(require_role("doctor", "admin")),
 ):
     visit = get_visit(visit_id)
     if not visit:
@@ -179,7 +183,7 @@ def doctor_conversation_route(
     )
     add_audit_log(
         audit_id=str(uuid.uuid4()),
-        actor_role=_role,
+        actor_role=auth.role,
         action="doctor_conversation_summary",
         entity_type="visit",
         entity_id=visit_id,
@@ -200,8 +204,9 @@ def doctor_conversation_route(
 @router.get("/visits/{visit_id}/doctor-conversation/latest")
 def latest_doctor_conversation_route(
     visit_id: str,
-    _role: str = Depends(require_role("doctor", "admin")),
+    auth: AuthContext = Depends(require_role("doctor", "admin")),
 ):
+    _ = auth
     row = get_latest_doctor_conversation(visit_id)
     if not row:
         raise HTTPException(status_code=404, detail=error_payload("NOT_FOUND", "No doctor conversation found", {"visit_id": visit_id}))
