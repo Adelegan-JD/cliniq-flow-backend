@@ -16,10 +16,7 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 from app.api.admin_routes import router as admin_router
-# Legacy import kept for review:
-# from app.api.asr_routes import router as asr_router
-# Commented out because the current ASR module defines a standalone FastAPI app,
-# not an APIRouter, and can break backend startup during import.
+from app.api.asr_routes import translate_router, conversation_router,limiter,lifespan
 from app.api.clinical_routes import router as clinical_router
 from app.api.doctor_routes import router as doctor_router
 from app.api.nurse_routes import router as nurse_router
@@ -29,6 +26,7 @@ from app.api.record_officer_routes import router as record_officer_router
 from app.utils.auth import require_role
 from app.utils.errors import error_payload
 from app.utils.storage import init_db
+
 
 load_dotenv()
 
@@ -68,8 +66,10 @@ except Exception:
 app = FastAPI(
     title="CliniqFlow API",
     description="AI-assisted pre-consultation platform for Nigerian paediatric healthcare",
-    version="0.1.0",
+    version="0.1.0", lifespan=lifespan
 )
+
+app.state.limiter = limiter
 
 app.add_middleware(
     CORSMiddleware,
@@ -82,7 +82,8 @@ app.add_middleware(
 # Keep existing NLP routes for frontend compatibility
 app.include_router(admin_router, prefix="/admin", tags=["Admin"])
 app.include_router(nlp_router)
-app.include_router(asr_router)
+app.include_router(translate_router)
+app.include_router(conversation_router)
 app.include_router(orchestration_router, prefix="/ai", tags=["Orchestration"])
 app.include_router(clinical_router)
 app.include_router(nurse_router)

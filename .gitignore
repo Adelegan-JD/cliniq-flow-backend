@@ -9,3 +9,5 @@ backend/data/
 .env
 *.env
 backend/tests/.env
+model_cache/
+#

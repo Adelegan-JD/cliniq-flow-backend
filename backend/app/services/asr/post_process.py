@@ -251,18 +251,6 @@ async def lifespan(app: FastAPI):
     logger.info("Shutdown complete")
 
 
-app = FastAPI(title= "Nigerian Medical Live Speech Translation API",version  = "1.0.0",lifespan = lifespan)
-
-app.state.limiter = limiter
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins  = ALLOWED_ORIGINS,              
-    allow_methods  = ["POST", "GET", "DELETE"],  
-    allow_headers  = ["Authorization", "Content-Type"]
-)
-
-
 security = HTTPBearer()
 
 def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)):
