@@ -11,6 +11,7 @@ import os
 from fastapi import APIRouter, HTTPException, Depends
 
 from app.services.sync.supabase_sync import SupabaseSyncService
+from app.utils.auth import AuthContext
 from app.utils.auth import require_role
 from app.utils.storage import get_metrics
 from app.utils.storage import list_audit_logs
@@ -62,7 +63,7 @@ def _get_supabase_admin():
 
 @router.post("/invite-user")
 async def invite_user(
-    request: AdminCreateUserRequest, admin_user=Depends(verify_admin)
+    request: AdminCreateUserRequest, admin_user: AuthContext = Depends(verify_admin)
 ):
     try:
         supabase_admin = _get_supabase_admin()
@@ -86,7 +87,7 @@ async def invite_user(
 
 
 @router.get("/users")
-async def list_users(admin_user=Depends(verify_admin)):
+async def list_users(admin_user: AuthContext = Depends(verify_admin)):
     """Admin-only: list users exposing only `display_name` and `role` from metadata."""
     try:
         supabase_admin = _get_supabase_admin()
@@ -140,20 +141,24 @@ async def list_users(admin_user=Depends(verify_admin)):
 
 
 @router.get("/metrics")
-def admin_metrics(_role: str = Depends(require_role("admin"))):
+def admin_metrics(auth: AuthContext = Depends(require_role("admin"))):
+    _ = auth
     return get_metrics()
 
 
 @router.get("/sync/status")
-def sync_status(_role: str = Depends(require_role("admin"))):
+def sync_status(auth: AuthContext = Depends(require_role("admin"))):
+    _ = auth
     return SupabaseSyncService().status()
 
 
 @router.post("/sync/run")
-def run_sync(_role: str = Depends(require_role("admin"))):
+def run_sync(auth: AuthContext = Depends(require_role("admin"))):
+    _ = auth
     return SupabaseSyncService().sync_once()
 
 
 @router.get("/logs")
-def admin_logs(limit: int = 100, _role: str = Depends(require_role("admin"))):
+def admin_logs(limit: int = 100, auth: AuthContext = Depends(require_role("admin"))):
+    _ = auth
     return {"items": list_audit_logs(limit=limit)}

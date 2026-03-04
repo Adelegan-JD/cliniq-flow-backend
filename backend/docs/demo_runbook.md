@@ -7,6 +7,12 @@ cd backend
 uvicorn app.main:app --reload
 ```
 
+For local smoke testing with stub bearer tokens:
+
+```powershell
+$env:CLINIQ_AUTH_MODE="stub"
+```
+
 ## Database mode
 
 Default is SQLite. To use local Postgres:
@@ -32,12 +38,12 @@ python scripts/smoke_test.py
 ```
 
 This executes:
-- `POST /ai/process_intake` as `X-Role: nurse`
-- `POST /ai/dose-check` as `X-Role: doctor`
-- `POST /med-orders/{id}/override` as `X-Role: doctor`
-- `GET /admin/metrics` as `X-Role: admin`
-- `GET /admin/sync/status` as `X-Role: admin`
-- `POST /admin/sync/run` as `X-Role: admin`
+- `POST /ai/process_intake` with `Authorization: Bearer role:nurse|...`
+- `POST /ai/dose-check` with `Authorization: Bearer role:doctor|...`
+- `POST /med-orders/{id}/override` with `Authorization: Bearer role:doctor|...`
+- `GET /admin/metrics` with `Authorization: Bearer role:admin|...`
+- `GET /admin/sync/status` with `Authorization: Bearer role:admin|...`
+- `POST /admin/sync/run` with `Authorization: Bearer role:admin|...`
 
 ## UI routing groups
 
@@ -55,7 +61,8 @@ Nurse frontend can use:
 
 ## Required headers by role
 
-- Nurse/doctor/admin routes require `X-Role`.
+- Protected routes require `Authorization: Bearer <access_token>`.
+- For local stub mode only, the bearer token can be a synthetic token like `role:nurse|email:nurse@example.com|user_id:nurse-1`.
 - Override accepts optional `X-Doctor-Id` for audit metadata.
 
 ## Synthetic payload examples

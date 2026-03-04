@@ -54,6 +54,7 @@ pytest-asyncio==0.23.6
 # Enabled admin/Supabase integration
 supabase
 email-validator
+python-jose[cryptography]
 
 torch==2.10.0            
 torchaudio==2.10.0       

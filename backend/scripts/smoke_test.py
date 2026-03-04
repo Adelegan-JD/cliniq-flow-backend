@@ -12,17 +12,23 @@ import httpx
 BASE_URL = "http://127.0.0.1:8000"
 
 
-def _post(path: str, payload: dict, role: str, doctor_id: str | None = None) -> dict:
-    headers = {"X-Role": role}
+def _auth_headers(role: str, doctor_id: str | None = None) -> dict[str, str]:
+    token = f"role:{role}|email:{role}@example.com|user_id:{role}-smoke"
+    headers = {"Authorization": f"Bearer {token}"}
     if doctor_id:
         headers["X-Doctor-Id"] = doctor_id
+    return headers
+
+
+def _post(path: str, payload: dict, role: str, doctor_id: str | None = None) -> dict:
+    headers = _auth_headers(role, doctor_id=doctor_id)
     response = httpx.post(f"{BASE_URL}{path}", json=payload, headers=headers, timeout=20)
     print(path, response.status_code)
     return response.json()
 
 
 def _get(path: str, role: str) -> dict:
-    response = httpx.get(f"{BASE_URL}{path}", headers={"X-Role": role}, timeout=20)
+    response = httpx.get(f"{BASE_URL}{path}", headers=_auth_headers(role), timeout=20)
     print(path, response.status_code)
     return response.json()
 

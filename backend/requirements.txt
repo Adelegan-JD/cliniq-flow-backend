@@ -21,6 +21,7 @@ pytest-asyncio==0.23.6
 # Enabled admin/Supabase integration
 supabase
 email-validator
+python-jose[cryptography]
 
 # Optional ASR stack
 # Commented out because ASR is currently isolated from backend startup and pulls

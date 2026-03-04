@@ -13,9 +13,18 @@ from fastapi.testclient import TestClient
 
 def _client(tmp_path: Path) -> TestClient:
     os.environ["CLINIQ_DB_PATH"] = str(tmp_path / "test_cliniq.db")
+    os.environ["CLINIQ_AUTH_MODE"] = "stub"
     from backend.main import app
 
     return TestClient(app)
+
+
+def _auth_headers(role: str, doctor_id: str | None = None) -> dict[str, str]:
+    token = f"role:{role}|email:{role}@example.com|user_id:{role}-1"
+    headers = {"Authorization": f"Bearer {token}"}
+    if doctor_id:
+        headers["X-Doctor-Id"] = doctor_id
+    return headers
 
 
 def test_health_and_root(tmp_path: Path) -> None:
@@ -39,7 +48,7 @@ def test_process_intake_contract_shape(tmp_path: Path) -> None:
         "duration_days": 1,
         "vitals": {"rr": 40, "temp_c": 39.2},
     }
-    response = client.post("/ai/process_intake", json=payload, headers={"X-Role": "nurse"})
+    response = client.post("/ai/process_intake", json=payload, headers=_auth_headers("nurse"))
     assert response.status_code == 200
     body = response.json()
     assert set(["visit_id", "triage", "summary", "audit_event_id"]).issubset(body.keys())
@@ -58,7 +67,7 @@ def test_dose_check_unsafe_and_safe(tmp_path: Path) -> None:
     unsafe = client.post(
         "/ai/dose-check",
         json={**common, "chosen_dose_mg_per_day": 2000},
-        headers={"X-Role": "doctor"},
+        headers=_auth_headers("doctor"),
     )
     assert unsafe.status_code == 200
     assert unsafe.json()["safe"] is False
@@ -67,7 +76,7 @@ def test_dose_check_unsafe_and_safe(tmp_path: Path) -> None:
     safe = client.post(
         "/ai/dose-check",
         json={**common, "chosen_dose_mg_per_day": 500},
-        headers={"X-Role": "doctor"},
+        headers=_auth_headers("doctor"),
     )
     assert safe.status_code == 200
     assert safe.json()["safe"] is True
@@ -85,7 +94,7 @@ def test_override_and_metrics(tmp_path: Path) -> None:
             "duration_days": 1,
             "vitals": {"rr": 38},
         },
-        headers={"X-Role": "nurse"},
+        headers=_auth_headers("nurse"),
     )
     client.post(
         "/ai/dose-check",
@@ -97,17 +106,17 @@ def test_override_and_metrics(tmp_path: Path) -> None:
             "frequency_per_day": 2,
             "chosen_dose_mg_per_day": 9999,
         },
-        headers={"X-Role": "doctor"},
+        headers=_auth_headers("doctor"),
     )
     override = client.post(
         "/med-orders/m1/override",
         json={"reason": "Clinically justified by prior specialist recommendation"},
-        headers={"X-Role": "doctor", "X-Doctor-Id": "doc-123"},
+        headers=_auth_headers("doctor", doctor_id="doc-123"),
     )
     assert override.status_code == 200
     assert override.json()["override_logged"] is True
 
-    metrics = client.get("/admin/metrics", headers={"X-Role": "admin"})
+    metrics = client.get("/admin/metrics", headers=_auth_headers("admin"))
     assert metrics.status_code == 200
     body = metrics.json()
     assert body["total_intakes"] >= 1
@@ -117,24 +126,24 @@ def test_override_and_metrics(tmp_path: Path) -> None:
 
 def test_error_shape_for_validation_and_forbidden(tmp_path: Path) -> None:
     client = _client(tmp_path)
-    forbidden = client.get("/admin/metrics", headers={"X-Role": "nurse"})
+    forbidden = client.get("/admin/metrics", headers=_auth_headers("nurse"))
     assert forbidden.status_code == 403
     assert "error" in forbidden.json()
 
-    invalid = client.post("/ai/process_intake", json={"visit_id": "x"}, headers={"X-Role": "nurse"})
+    invalid = client.post("/ai/process_intake", json={"visit_id": "x"}, headers=_auth_headers("nurse"))
     assert invalid.status_code == 422
     assert invalid.json()["error"]["code"] == "VALIDATION_ERROR"
 
 
 def test_sync_scaffold_endpoints(tmp_path: Path) -> None:
     client = _client(tmp_path)
-    status = client.get("/admin/sync/status", headers={"X-Role": "admin"})
+    status = client.get("/admin/sync/status", headers=_auth_headers("admin"))
     assert status.status_code == 200
     body = status.json()
     assert "configured" in body
     assert "pending" in body
 
-    run = client.post("/admin/sync/run", headers={"X-Role": "admin"})
+    run = client.post("/admin/sync/run", headers=_auth_headers("admin"))
     assert run.status_code == 200
     assert "ok" in run.json()
 
@@ -145,7 +154,7 @@ def test_full_demo_endpoints_flow(tmp_path: Path) -> None:
     ro_patient = client.post(
         "/record-officer/patients",
         json={"full_name": "RO Child", "date_of_birth": "2021-06-01", "gender": "female"},
-        headers={"X-Role": "record_officer"},
+        headers=_auth_headers("record_officer"),
     )
     assert ro_patient.status_code == 200
     ro_patient_id = ro_patient.json()["id"]
@@ -153,7 +162,7 @@ def test_full_demo_endpoints_flow(tmp_path: Path) -> None:
     ro_visit = client.post(
         "/record-officer/visits",
         json={"patient_id": ro_patient_id, "visit_status": "open"},
-        headers={"X-Role": "record_officer"},
+        headers=_auth_headers("record_officer"),
     )
     assert ro_visit.status_code == 200
     ro_visit_id = ro_visit.json()["id"]
@@ -168,31 +177,31 @@ def test_full_demo_endpoints_flow(tmp_path: Path) -> None:
             "duration_days": 1,
             "vitals": {"rr": 34},
         },
-        headers={"X-Role": "nurse"},
+        headers=_auth_headers("nurse"),
     )
     assert nurse_intake.status_code == 200
 
     nurse_triage = client.post(
         "/nurse/triage",
         json={"visit_id": ro_visit_id, "transcript": "fever and fast breathing", "patient_age": "5 years"},
-        headers={"X-Role": "nurse"},
+        headers=_auth_headers("nurse"),
     )
     assert nurse_triage.status_code == 200
 
     nurse_summary = client.post(
         "/nurse/summary",
         json={"visit_id": ro_visit_id, "transcript": "fever and cough", "patient_age": "5 years"},
-        headers={"X-Role": "nurse"},
+        headers=_auth_headers("nurse"),
     )
     assert nurse_summary.status_code == 200
 
-    nurse_latest = client.get(f"/nurse/visits/{ro_visit_id}/latest-intake", headers={"X-Role": "nurse"})
+    nurse_latest = client.get(f"/nurse/visits/{ro_visit_id}/latest-intake", headers=_auth_headers("nurse"))
     assert nurse_latest.status_code == 200
 
     patient = client.post(
         "/patients",
         json={"full_name": "Test Child", "date_of_birth": "2021-06-01", "gender": "female", "phone": "08030000000"},
-        headers={"X-Role": "record_officer"},
+        headers=_auth_headers("record_officer"),
     )
     assert patient.status_code == 200
     patient_id = patient.json()["id"]
@@ -200,7 +209,7 @@ def test_full_demo_endpoints_flow(tmp_path: Path) -> None:
     visit = client.post(
         "/visits",
         json={"patient_id": patient_id, "visit_status": "open"},
-        headers={"X-Role": "record_officer"},
+        headers=_auth_headers("record_officer"),
     )
     assert visit.status_code == 200
     visit_id = visit.json()["id"]
@@ -208,7 +217,7 @@ def test_full_demo_endpoints_flow(tmp_path: Path) -> None:
     triage = client.post(
         "/ai/triage",
         json={"visit_id": visit_id, "transcript": "child has fever and difficulty breathing", "patient_age": "5 years"},
-        headers={"X-Role": "nurse"},
+        headers=_auth_headers("nurse"),
     )
     assert triage.status_code == 200
     assert "triage" in triage.json()
@@ -216,7 +225,7 @@ def test_full_demo_endpoints_flow(tmp_path: Path) -> None:
     summary = client.post(
         "/ai/summary",
         json={"visit_id": visit_id, "transcript": "child has fever and cough for two days", "patient_age": "5 years"},
-        headers={"X-Role": "nurse"},
+        headers=_auth_headers("nurse"),
     )
     assert summary.status_code == 200
     assert "summary" in summary.json()
@@ -231,17 +240,17 @@ def test_full_demo_endpoints_flow(tmp_path: Path) -> None:
             "duration_days": 1,
             "vitals": {"rr": 40, "temp_c": 39.2},
         },
-        headers={"X-Role": "nurse"},
+        headers=_auth_headers("nurse"),
     )
     assert intake.status_code == 200
 
-    latest_intake = client.get(f"/visits/{visit_id}/latest-intake", headers={"X-Role": "doctor"})
+    latest_intake = client.get(f"/visits/{visit_id}/latest-intake", headers=_auth_headers("doctor"))
     assert latest_intake.status_code == 200
 
     asr = client.post(
         "/asr/transcribe",
         json={"transcript_hint": "patient had fever and cough, no seizure"},
-        headers={"X-Role": "doctor"},
+        headers=_auth_headers("doctor"),
     )
     assert asr.status_code == 200
     transcript = asr.json()["transcript"]
@@ -249,7 +258,7 @@ def test_full_demo_endpoints_flow(tmp_path: Path) -> None:
     convo = client.post(
         f"/visits/{visit_id}/doctor-conversation",
         json={"transcript": transcript, "patient_age": "5 years"},
-        headers={"X-Role": "doctor", "X-Doctor-Id": "doc-1"},
+        headers=_auth_headers("doctor", doctor_id="doc-1"),
     )
     assert convo.status_code == 200
     assert "soap_note" in convo.json()
@@ -264,7 +273,7 @@ def test_full_demo_endpoints_flow(tmp_path: Path) -> None:
             "is_safe": True,
             "dose_check_result": {"safe": True},
         },
-        headers={"X-Role": "doctor"},
+        headers=_auth_headers("doctor"),
     )
     assert med_order.status_code == 200
     med_order_id = med_order.json()["id"]
@@ -272,10 +281,10 @@ def test_full_demo_endpoints_flow(tmp_path: Path) -> None:
     override = client.post(
         f"/med-orders/{med_order_id}/override",
         json={"reason": "Clinical judgment with close monitoring"},
-        headers={"X-Role": "doctor", "X-Doctor-Id": "doc-1"},
+        headers=_auth_headers("doctor", doctor_id="doc-1"),
     )
     assert override.status_code == 200
 
-    logs = client.get("/admin/logs", headers={"X-Role": "admin"})
+    logs = client.get("/admin/logs", headers=_auth_headers("admin"))
     assert logs.status_code == 200
     assert isinstance(logs.json().get("items"), list)

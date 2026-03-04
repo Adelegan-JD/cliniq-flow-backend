@@ -10,6 +10,7 @@ import uuid
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from app.utils.auth import AuthContext
 from app.utils.auth import require_role
 from app.utils.errors import error_payload
 from app.utils.storage import add_audit_log
@@ -37,7 +38,7 @@ class MedOrderCreateRequest(BaseModel):
 @router.post("/med-orders")
 def create_med_order_route(
     payload: MedOrderCreateRequest,
-    _role: str = Depends(require_role("doctor", "admin")),
+    auth: AuthContext = Depends(require_role("doctor", "admin")),
 ):
     visit = get_visit(payload.visit_id)
     if not visit:
@@ -55,7 +56,7 @@ def create_med_order_route(
     )
     add_audit_log(
         audit_id=str(uuid.uuid4()),
-        actor_role=_role,
+        actor_role=auth.role,
         action="create_med_order",
         entity_type="med_order",
         entity_id=med_order_id,
@@ -67,8 +68,9 @@ def create_med_order_route(
 @router.get("/visits/{visit_id}/med-orders")
 def list_med_orders_route(
     visit_id: str,
-    _role: str = Depends(require_role("doctor", "admin")),
+    auth: AuthContext = Depends(require_role("doctor", "admin")),
 ):
+    _ = auth
     return {"visit_id": visit_id, "items": list_visit_med_orders(visit_id)}
 
 
@@ -76,7 +78,7 @@ def list_med_orders_route(
 def override_med_order(
     med_order_id: str,
     payload: OverrideRequest,
-    _role: str = Depends(require_role("doctor", "admin")),
+    auth: AuthContext = Depends(require_role("doctor", "admin")),
     x_doctor_id: str | None = Header(default=None, alias="X-Doctor-Id"),
 ):
     event_id = str(uuid.uuid4())
@@ -84,12 +86,12 @@ def override_med_order(
         event_id=event_id,
         med_order_id=med_order_id,
         override_reason=payload.reason,
-        actor_role=_role,
+        actor_role=auth.role,
         doctor_id=x_doctor_id,
     )
     add_audit_log(
         audit_id=str(uuid.uuid4()),
-        actor_role=_role,
+        actor_role=auth.role,
         action="override_med_order",
         entity_type="med_order",
         entity_id=med_order_id,

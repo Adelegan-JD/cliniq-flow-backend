@@ -17,6 +17,7 @@ from app.services.nlp.soap_formatter import SOAPFormatter
 from app.services.nlp.symptom_extractor import SymptomExtractor
 from app.services.nlp.urgency_scorer import UrgencyScorer
 from app.services.orchestration.pipeline import process_intake
+from app.utils.auth import AuthContext
 from app.utils.auth import require_role
 from app.utils.errors import error_payload
 from app.utils.storage import add_audit_log
@@ -43,7 +44,7 @@ class SummaryRequest(BaseModel):
 @router.post("/process-intake")
 def process_intake_route(
     payload: IntakeRequest,
-    _role: str = Depends(require_role("nurse", "admin")),
+    auth: AuthContext = Depends(require_role("nurse", "admin")),
 ):
     try:
         response = process_intake(payload.model_dump())
@@ -59,7 +60,7 @@ def process_intake_route(
         )
         add_audit_log(
             audit_id=str(uuid.uuid4()),
-            actor_role=_role,
+            actor_role=auth.role,
             action="nurse_process_intake",
             entity_type="visit",
             entity_id=payload.visit_id,
@@ -76,8 +77,9 @@ def process_intake_route(
 @router.post("/triage")
 def triage_route(
     payload: TriageRequest,
-    _role: str = Depends(require_role("nurse", "admin")),
+    auth: AuthContext = Depends(require_role("nurse", "admin")),
 ):
+    _ = auth
     try:
         extractor = SymptomExtractor()
         urgency_scorer = UrgencyScorer()
@@ -106,8 +108,9 @@ def triage_route(
 @router.post("/summary")
 def summary_route(
     payload: SummaryRequest,
-    _role: str = Depends(require_role("nurse", "admin")),
+    auth: AuthContext = Depends(require_role("nurse", "admin")),
 ):
+    _ = auth
     try:
         extractor = SymptomExtractor()
         formatter = SOAPFormatter()
@@ -140,8 +143,9 @@ def summary_route(
 @router.get("/visits/{visit_id}/latest-intake")
 def latest_intake_route(
     visit_id: str,
-    _role: str = Depends(require_role("nurse", "doctor", "admin")),
+    auth: AuthContext = Depends(require_role("nurse", "doctor", "admin")),
 ):
+    _ = auth
     row = get_latest_intake(visit_id)
     if not row:
         raise HTTPException(status_code=404, detail=error_payload("NOT_FOUND", "No intake found for visit", {"visit_id": visit_id}))
