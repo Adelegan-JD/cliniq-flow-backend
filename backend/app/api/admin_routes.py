@@ -6,16 +6,21 @@ sync status, and audit logs. They are protected with admin role checks.
 
 from __future__ import annotations
 
+import os
+
 from fastapi import APIRouter, HTTPException, Depends
 
 from app.services.sync.supabase_sync import SupabaseSyncService
 from app.utils.auth import require_role
 from app.utils.storage import get_metrics
 from app.utils.storage import list_audit_logs
-from pydantic import BaseModel, EmailStr
-from supabase import create_client, Client
+from pydantic import BaseModel
+# Legacy imports kept for review:
+# from pydantic import BaseModel, EmailStr
+# from supabase import create_client, Client
+# Commented out because they made admin startup depend on optional packages
+# and config even for routes like /health and test imports.
 from app.dependency.dependencies import verify_admin
-import os
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -25,7 +30,11 @@ router = APIRouter()
 
 
 class AdminCreateUserRequest(BaseModel):
-    email: EmailStr
+    email: str
+    # Legacy type kept for review:
+    # email: EmailStr
+    # Commented out because EmailStr typically requires email-validator,
+    # which was not installed and caused avoidable import/runtime failures.
     # Optional: If you want to set a temporary password
     password: str | None = None
     role: str | None = None
@@ -33,7 +42,22 @@ class AdminCreateUserRequest(BaseModel):
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-supabase_admin: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+# Legacy eager client kept for review:
+# supabase_admin: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+# Commented out because it crashed module import when Supabase env vars or the
+# package were unavailable, blocking the whole app from starting.
+
+
+def _get_supabase_admin():
+    try:
+        from supabase import create_client
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Supabase admin client is not available") from exc
+
+    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+        raise HTTPException(status_code=503, detail="Supabase admin client is not configured")
+
+    return create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 
 @router.post("/invite-user")
@@ -41,8 +65,9 @@ async def invite_user(
     request: AdminCreateUserRequest, admin_user=Depends(verify_admin)
 ):
     try:
+        supabase_admin = _get_supabase_admin()
         # 1. Using inviteUserByEmail triggers the Supabase 'Invite' email template automatically
-        response = supabase_admin.auth.admin.create_user(
+        supabase_admin.auth.admin.create_user(
             {
                 "email": request.email,
                 "password": request.password,
@@ -64,6 +89,7 @@ async def invite_user(
 async def list_users(admin_user=Depends(verify_admin)):
     """Admin-only: list users exposing only `display_name` and `role` from metadata."""
     try:
+        supabase_admin = _get_supabase_admin()
         result = supabase_admin.auth.admin.list_users()
 
         # Normalize the returned users list from different SDK response shapes

@@ -1,0 +1,41 @@
+# Backend API core
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+pydantic
+python-dotenv==1.0.1
+python-multipart==0.0.9
+httpx==0.27.0
+openai>=1.0.0
+psycopg[binary]
+
+# Test dependencies
+pytest==8.2.0
+pytest-asyncio==0.23.6
+
+# Legacy optional admin/Supabase integration kept for review:
+# supabase
+# email-validator
+# Commented out because the backend was temporarily made deployable without
+# Supabase installed. Supabase support is now being enabled explicitly.
+
+# Enabled admin/Supabase integration
+supabase
+email-validator
+
+# Optional ASR stack
+# Commented out because ASR is currently isolated from backend startup and pulls
+# in heavy ML dependencies. Uncomment when deploying the ASR path.
+# slowapi==0.1.9
+# torch==2.2.2
+# torchaudio==2.2.2
+# transformers==4.41.0
+# huggingface_hub==0.23.0
+# pyannote.audio==3.1.1
+# accelerate==0.29.3
+# librosa==0.10.1
+# soundfile==0.12.1
+# audioread==3.0.1
+# numpy==1.26.4
+# pydub
+# lightning-fabric
+# pytorch-lightning
