@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 def _client(tmp_path: Path) -> TestClient:
     os.environ["CLINIQ_DB_PATH"] = str(tmp_path / "test_cliniq.db")
     os.environ["CLINIQ_AUTH_MODE"] = "stub"
-    from main import app
+    from backend.main import app
 
     return TestClient(app)
 
