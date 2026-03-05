@@ -1,16 +1,38 @@
+# Virtual environments
 a_venv
 venv
 .env
+<<<<<<< HEAD
 __pycache__/
 *.pyc
 
 backend/data/
 
 # Env files
+=======
+.venv/
+
+# Python bytecode and caches
+***__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+**/__pycache__
+# Local data/model caches
+backend/data/
+backend/model_cache/
+model_cache/
+
+# Environment files
+>>>>>>> 5e4c54adadcfe02dd17b78ecf511d2285fbe0b7d
 .env
 *.env
 backend/tests/.env
 **/model_cache/
+<<<<<<< HEAD
+=======
+
+>>>>>>> 5e4c54adadcfe02dd17b78ecf511d2285fbe0b7d
 *.safetensors
 *.bin
 *.pt
