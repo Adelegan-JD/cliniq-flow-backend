@@ -1,3 +1,16 @@
 a_venv
 venv
 .env
+__pycache__/
+*.pyc
+
+backend/data/
+
+# Env files
+.env
+*.env
+backend/tests/.env
+**/model_cache/
+*.safetensors
+*.bin
+*.pt
