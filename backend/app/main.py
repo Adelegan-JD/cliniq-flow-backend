@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 from app.api.admin_routes import router as admin_routes_router
+from app.api.asr_routes import translate_router, conversation_router, limiter, lifespan
 from app.api.clinical_routes import router as clinical_routes_router
 from app.api.doctor_routes import router as doctor_routes_router
 from app.api.nlp_routes import router as nlp_router
