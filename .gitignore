@@ -1,3 +1,26 @@
+# Virtual environments
 a_venv
 venv
 .env
+.venv/
+
+# Python bytecode and caches
+***__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+**/__pycache__
+# Local data/model caches
+backend/data/
+backend/model_cache/
+model_cache/
+
+# Environment files
+.env
+*.env
+backend/tests/.env
+**/model_cache/
+
+*.safetensors
+*.bin
+*.pt
