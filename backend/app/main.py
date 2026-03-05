@@ -82,7 +82,7 @@ except Exception:
 
 # Contract-compatible route stack retained for frontend/test compatibility.
 app.include_router(admin_routes_router, prefix="/admin", tags=["Admin"])
-app.include_router(asr_router)
+# app.include_router(asr_router)
 app.include_router(orchestration_routes_router, prefix="/ai", tags=["Orchestration"])
 app.include_router(clinical_routes_router)
 app.include_router(nurse_routes_router)
