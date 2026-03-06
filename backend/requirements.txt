@@ -26,17 +26,17 @@ python-jose[cryptography]
 # Optional ASR stack
 # Commented out because ASR is currently isolated from backend startup and pulls
 # in heavy ML dependencies. Uncomment when deploying the ASR path.
-# slowapi==0.1.9
-# torch==2.2.2
-# torchaudio==2.2.2
-# transformers==4.41.0
-# huggingface_hub==0.23.0
-# pyannote.audio==3.1.1
-# accelerate==0.29.3
-# librosa==0.10.1
-# soundfile==0.12.1
-# audioread==3.0.1
-# numpy==1.26.4
-# pydub
-# lightning-fabric
-# pytorch-lightning
+slowapi==0.1.9
+torch==2.2.2
+torchaudio==2.2.2
+transformers==4.41.0
+huggingface_hub==0.23.0
+pyannote.audio==3.1.1
+accelerate==0.29.3
+librosa==0.10.1
+soundfile==0.12.1
+audioread==3.0.1
+numpy==1.26.4
+pydub
+lightning-fabric
+pytorch-lightning

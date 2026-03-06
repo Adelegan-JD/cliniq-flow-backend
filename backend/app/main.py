@@ -41,7 +41,7 @@ app.include_router(conversation_router)
 # Malik router kept active for Supabase-first endpoints under /api.
 app.include_router(api_router, prefix="/api")
 
-# Existing NLP service endpoints.
+# kenny NLP service endpoints.
 app.include_router(nlp_router)
 
 # Legacy import kept for reference:

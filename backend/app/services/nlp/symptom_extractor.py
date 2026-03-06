@@ -23,7 +23,7 @@ load_dotenv()  # Load environment variables from .env file
 
 from pydantic import ValidationError
 
-from app.models.clinical_schema import (
+from models.clinical_schema import (
     AllergyRecord,
     ClinicalFlag,
     ConfidenceLevel,
@@ -86,7 +86,7 @@ VITAL_PATTERNS: Dict[str, re.Pattern] = {
     "temperature": re.compile(r"temp(?:erature)?\s*(?:is|of|was|:)?\s*(\d+\.?\d*)\s*(?:degrees|°)?(?:C|F)?", re.I),
     "heart_rate": re.compile(r"(?:pulse|heart rate|HR)\s*(?:is|of|was|:)?\s*(\d+)\s*(?:bpm|per minute)?", re.I),
     "respiratory_rate": re.compile(r"(?:resp(?:iratory)? rate|RR|breathing rate)\s*(?:is|of|was|:)?\s*(\d+)", re.I),
-    "oxygen_saturation": re.compile(r"(?:spo2|oxygen sat|O2 sat|saturation)\s*(?:is|of|was|:)?\s*(\d+\.?\d*)\s*%?", re.I),
+    # "oxygen_saturation": re.compile(r"(?:spo2|oxygen sat|O2 sat|saturation)\s*(?:is|of|was|:)?\s*(\d+\.?\d*)\s*%?", re.I),
     "weight": re.compile(r"(?:weight|weighs?|wt)\s*(?:is|of|was|:)?\s*(\d+\.?\d*)\s*(kg|kilograms?)?", re.I),
 }
 
@@ -166,14 +166,14 @@ class RuleBasedExtractor:
             "temperature": "°C",
             "heart_rate": "bpm",
             "respiratory_rate": "breaths/min",
-            "oxygen_saturation": "%",
+            # "oxygen_saturation": "%",
             "blood_pressure": "mmHg",
         }
         vital_normal_ranges = {
             "temperature": "36.5-37.5",
             "heart_rate": "60-100",
             "respiratory_rate": "12-20",
-            "oxygen_saturation": "95-100",
+            # "oxygen_saturation": "95-100",
             "blood_pressure": "120/80",
         }
         for vital_name, pattern in VITAL_PATTERNS.items():
@@ -231,7 +231,7 @@ class RuleBasedExtractor:
             "temperature": (36.1, 37.5),
             "heart_rate": (60, 110),
             "respiratory_rate": (12, 30),
-            "oxygen_saturation": (95, 100),
+            # "oxygen_saturation": (95, 100),
             "weight": (0, 9999),  # always valid range
         }
         if vital_name in ranges:

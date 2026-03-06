@@ -4,6 +4,7 @@ venv
 .env
 .venv/
 
+
 # Python bytecode and caches
 ***__pycache__/
 *.py[cod]
@@ -17,6 +18,7 @@ model_cache/
 
 # Environment files
 .env
+.env.example
 *.env
 backend/tests/.env
 **/model_cache/
