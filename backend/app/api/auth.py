@@ -1,0 +1,11 @@
+from fastapi import APIRouter
+
+router = APIRouter()
+
+@router.post('/login')
+def login():
+    return {'token': 'demo-token'}
+
+@router.post('/register')
+def register():
+    return {'message': 'registered'}
